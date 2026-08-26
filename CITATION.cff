@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+title: ARNLE-IAV
+authors:
+  - family-names: Zhang
+    given-names: Shenglong
+
+message: Please cite the ARNLE-IAV publication when using this repository.
+type: software
+version: 1.0
