@@ -1,6 +1,6 @@
 # ARNLE-IAV
 
-ARNLE-IAV is an influenza A virus (IAV) host-adaptation analysis framework adapted from the ARNLE model. This repository contains the influenza-specific sequence-processing code, ELMo representation export, the three-class Bi-LSTM host classifier, and the downstream PCA, transition-band, candidate-site, statistical-evidence, and HA-NA paired-isolate analyses used in the study.
+ARNLE-IAV is an influenza A virus (IAV) host-adaptation analysis framework adapted from the ARNLE model(https://github.com/SN-1604/ARNLE). This repository contains the influenza-specific sequence-processing code, ELMo representation export, the three-class Bi-LSTM host classifier, and the downstream PCA, transition-band, candidate-site, statistical-evidence, and HA-NA paired-isolate analyses used in the study.
 
 Large-scale training/validation datasets, pretrained model weights, and the analysis-result tables associated with the manuscript are distributed through the companion Zenodo release.
 
