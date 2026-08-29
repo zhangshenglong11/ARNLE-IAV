@@ -1,22 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-HA-NA strict one-to-one paired-isolate analysis.
-
-Key safeguards:
-- A key must occur exactly once on the HA side and exactly once on the NA side.
-- The master tables are FILTERED to valid_keys before any drop_duplicates call.
-- Protein accessions are never used as an HA-NA pairing key.
-- Metadata-conflicting pairs are exported and excluded from the main table.
-- The final invariant is enforced:
-      n_unique_key_intersection == n_paired_rows == paired key nunique
-- Figure 5 joint-state, Pearson correlation and strict-discordance summaries
-  are generated from the same final paired rows.
-
-The script expects master/PCA/transition/trajectory inputs from the same
-analysis run.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -27,6 +8,11 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
 
 
 META_COLS = [
@@ -231,7 +217,13 @@ def metadata_conflict_columns(
 
 
 def infer_group_col(df: pd.DataFrame) -> Optional[str]:
-    for col in ["transition_group", "middle_group", "group", "band_group"]:
+    for col in [
+        "transition_group",
+        "transition_band_group",
+        "middle_group",
+        "group",
+        "band_group",
+    ]:
         if col in df.columns:
             return col
     return None
@@ -415,6 +407,94 @@ def classify_joint_state(
     return "No clear joint state"
 
 
+def pearson_permutation_p(
+    ha: pd.Series,
+    na: pd.Series,
+    n_perm: int = 1000,
+    seed: int = 2026,
+) -> float:
+    """Random-label permutation P for the HA-NA target-major-fraction Pearson r."""
+    ha_arr = ha.to_numpy(dtype=float)
+    na_arr = na.to_numpy(dtype=float)
+    if len(ha_arr) < 3:
+        return np.nan
+    obs = float(np.corrcoef(ha_arr, na_arr)[0, 1])
+    rng = np.random.default_rng(seed)
+    count = 0
+    n_valid = 0
+    for _ in range(n_perm):
+        perm = rng.permutation(na_arr)
+        r = np.corrcoef(ha_arr, perm)[0, 1]
+        if np.isfinite(r):
+            n_valid += 1
+            if r >= obs:
+                count += 1
+    if n_valid == 0:
+        return np.nan
+    return float((count + 1) / (n_valid + 1))
+
+
+def pearson_bootstrap_ci(
+    ha: pd.Series,
+    na: pd.Series,
+    n_iter: int = 1000,
+    seed: int = 2027,
+    ci: float = 0.95,
+):
+    """Bootstrap 95% CI for the HA-NA target-major-fraction Pearson r."""
+    ha_arr = ha.to_numpy(dtype=float)
+    na_arr = na.to_numpy(dtype=float)
+    n = len(ha_arr)
+    if n < 3:
+        return np.nan, np.nan
+    rng = np.random.default_rng(seed)
+    rs = []
+    for _ in range(n_iter):
+        idx = rng.integers(0, n, size=n)
+        r = np.corrcoef(ha_arr[idx], na_arr[idx])[0, 1]
+        if np.isfinite(r):
+            rs.append(float(r))
+    if len(rs) < 200:
+        return np.nan, np.nan
+    alpha = (1.0 - ci) / 2.0
+    lo, hi = np.quantile(rs, [alpha, 1.0 - alpha])
+    return float(lo), float(hi)
+
+
+def joint_state_threshold_sensitivity(paired: pd.DataFrame) -> dict:
+    """Joint-state composition under the 0.5/0.6/0.7/0.8 thresholds."""
+    out = {}
+    for thr in (0.5, 0.6, 0.7, 0.8):
+        js = paired.apply(classify_joint_state, axis=1, threshold=thr)
+        out[str(thr)] = {
+            str(k): float(v)
+            for k, v in js.value_counts(normalize=True).to_dict().items()
+        }
+    return out
+
+
+def save_paired_scatter(both_nonmissing: pd.DataFrame, out_dir: Path) -> None:
+    """Write the HA-NA paired target-major-fraction scatter plot."""
+    ha = pd.to_numeric(
+        both_nonmissing["HA_target_major_fraction"], errors="coerce"
+    )
+    na = pd.to_numeric(
+        both_nonmissing["NA_target_major_fraction"], errors="coerce"
+    )
+    valid = ha.notna() & na.notna()
+    fig, ax = plt.subplots(figsize=(6, 6), dpi=300)
+    ax.scatter(na[valid], ha[valid], s=8, alpha=0.5, edgecolors="none")
+    ax.set_xlim(0.0, 1.0)
+    ax.set_ylim(0.0, 1.0)
+    ax.plot([0, 1], [0, 1], ls="--", color="grey", lw=1)
+    ax.set_xlabel("NA target-major fraction")
+    ax.set_ylabel("HA target-major fraction")
+    ax.set_title("HA-NA paired isolate scatter")
+    fig.tight_layout()
+    fig.savefig(out_dir / "paired_scatter.png")
+    plt.close(fig)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ha-master", required=True, type=Path)
@@ -549,6 +629,31 @@ def main() -> None:
     na_low = both_nonmissing["NA_target_major_fraction"].lt(args.strict_low)
     strict_discordant = (ha_high & na_low) | (na_high & ha_low)
 
+    ha_frac = pd.to_numeric(
+        both_nonmissing["HA_target_major_fraction"], errors="coerce"
+    )
+    na_frac = pd.to_numeric(
+        both_nonmissing["NA_target_major_fraction"], errors="coerce"
+    )
+    corr_perm_p = pearson_permutation_p(ha_frac, na_frac)
+    corr_ci_low, corr_ci_high = pearson_bootstrap_ci(ha_frac, na_frac)
+    save_paired_scatter(both_nonmissing, args.out_dir)
+    thr_sensitivity = joint_state_threshold_sensitivity(paired)
+    pd.DataFrame(
+        [
+            {
+                "threshold": k,
+                "joint_state": str(state),
+                "fraction": float(frac),
+            }
+            for k, states in thr_sensitivity.items()
+            for state, frac in states.items()
+        ]
+    ).to_csv(
+        args.out_dir / "joint_state_threshold_sensitivity.csv",
+        index=False,
+    )
+
     paired.to_csv(args.out_dir / "paired_table.csv", index=False)
 
     clean_intersection = len(valid_keys) - len(conflicting)
@@ -593,8 +698,16 @@ def main() -> None:
         "correlation_method": "Pearson",
         "fraction_correlation": None if pd.isna(correlation) else float(correlation),
         "correlation_n": int(len(both_nonmissing)),
-        "correlation_p_value": None,
-        "correlation_confidence_interval": None,
+        "correlation_permutation_p": (
+            None if pd.isna(corr_perm_p) else float(corr_perm_p)
+        ),
+        "correlation_bootstrap_ci_low": (
+            None if pd.isna(corr_ci_low) else float(corr_ci_low)
+        ),
+        "correlation_bootstrap_ci_high": (
+            None if pd.isna(corr_ci_high) else float(corr_ci_high)
+        ),
+        "joint_state_threshold_sensitivity": thr_sensitivity,
         "strict_high_threshold_inclusive": float(args.strict_high),
         "strict_low_threshold_exclusive": float(args.strict_low),
         "strict_discordant_total": int(strict_discordant.sum()),
