@@ -1,6 +1,6 @@
 # ARNLE-IAV
 
-ARNLE-IAV is an influenza A virus (IAV) host-adaptation analysis framework adapted from the ARNLE model(https://github.com/SN-1604/ARNLE). This repository contains the influenza-specific sequence-processing code, ELMo representation export, the three-class Bi-LSTM host classifier, and the downstream PCA, transition-band, candidate-site, statistical-evidence, and HA-NA paired-isolate analyses used in the study.
+ARNLE-IAV is an influenza A virus (IAV) host-adaptation analysis framework adapted from the ARNLE model. This repository contains the influenza-specific sequence-processing code, ELMo representation export, the three-class Bi-LSTM host classifier, and the downstream PCA, transition-band, candidate-site, statistical-evidence, and HA-NA paired-isolate analyses used in the study.
 
 Large-scale training/validation datasets, pretrained model weights, and the analysis-result tables associated with the manuscript are distributed through the companion Zenodo release.
 
@@ -47,7 +47,7 @@ The public workflow is organized in the following order:
 7. Define the middle/transition band and rank candidate-site trajectories.
 8. Map alignment columns to reference residue positions.
 9. Run ordered-layer logistic trend tests and within-analysis BH-FDR correction.
-10. Run permutation and threshold-sensitivity analyses supporting Figure 3.
+10. Run permutation and threshold-sensitivity analyses supporting Figures 3 and 4 under the unified balanced-core transition-band rule.
 11. Reproduce and validate the candidate-site evidence levels used by candidate-site evidence summary/Figure 5.
 12. Perform HA-NA paired-isolate analysis.
 
@@ -406,6 +406,8 @@ The sequence-level site-state input is an explicit input to this script; use the
 
 ## Step 11. Build Figure 3 permutation and threshold-sensitivity support tables
 
+Figures 3 and 4 use the unified **balanced-core** transition-band rule for defining the transition band (see Step 8). `transition_band_support.py` implements the geometric transition-band rule and is retained for the permutation and threshold-sensitivity control used in Supplementary Fig. S4. The balanced-core permutation and threshold-sensitivity results for Figure 3 are provided through the companion Zenodo release (`analysis_results/Figure3_balanced_core/`) and use a middle/bridge sample count ≥30 as the transition-band formation criterion.
+
 Script:
 
 ```text
@@ -523,7 +525,7 @@ Repeat with the appropriate subtype and host direction for the other manuscript 
 | `transition_band_site_trajectory.py` | Define transition band and rank site trajectories |
 | `map_msa_to_reference.py` | Map alignment columns to reference residue numbering |
 | `site_logistic_trend_fdr.py` | Ordered logistic trend test and within-analysis BH-FDR |
-| `transition_band_support.py` | Permutation negative controls and transition-band sensitivity |
+| `transition_band_support.py` | Balanced-core permutation negative controls and transition-band sensitivity (Figures 3–4) |
 | `candidate_site_evidence.py` | Reproduce/validate the documented candidate-site evidence-level rule |
 | `ha_na_paired_analysis.py` | HA-NA same-isolate pairing and concordance analysis |
 
