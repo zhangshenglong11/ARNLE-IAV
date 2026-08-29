@@ -76,6 +76,11 @@ class LogisticResult:
     beta: float
     pvalue: float
     status: str
+    ci_low: float = np.nan
+    ci_high: float = np.nan
+    or_value: float = np.nan
+    or_ci_low: float = np.nan
+    or_ci_high: float = np.nan
 
 
 def read_csv_keep_na(path: str | Path) -> pd.DataFrame:
@@ -293,10 +298,10 @@ def fit_logistic_trend(y: pd.Series, x: pd.Series, min_total: int, min_per_layer
             return LogisticResult(np.nan, np.nan, "too_few_sequences_in_one_or_more_layers")
 
     if y.nunique(dropna=True) < 2:
-        return LogisticResult(np.nan, np.nan, "no_binary_variation")
+        return LogisticResult(np.nan, np.nan, "no_variation")
 
     if x.nunique(dropna=True) < 2:
-        return LogisticResult(np.nan, np.nan, "no_layer_variation")
+        return LogisticResult(np.nan, np.nan, "no_variation")
 
     X = sm.add_constant(x.to_numpy(dtype=float), has_constant="add")
 
@@ -309,13 +314,58 @@ def fit_logistic_trend(y: pd.Series, x: pd.Series, min_total: int, min_per_layer
         pvalue = float(res.pvalues[1])
         if not math.isfinite(beta) or not math.isfinite(pvalue):
             return LogisticResult(np.nan, np.nan, "non_finite_fit")
-        return LogisticResult(beta, pvalue, "ok")
+        conf = res.conf_int()
+        ci_low = float(conf[1][0])
+        ci_high = float(conf[1][1])
+        or_value = math.exp(beta)
+        or_ci_low = math.exp(ci_low)
+        or_ci_high = math.exp(ci_high)
+        if (
+            not math.isfinite(ci_low)
+            or not math.isfinite(ci_high)
+            or (ci_high - ci_low) > 10.0
+        ):
+            return LogisticResult(
+                beta, pvalue, "unstable_wide_ci_likely_quasi_separation",
+                ci_low, ci_high, or_value, or_ci_low, or_ci_high,
+            )
+        return LogisticResult(
+            beta, pvalue, "ok",
+            ci_low, ci_high, or_value, or_ci_low, or_ci_high,
+        )
     except PerfectSeparationError:
         return LogisticResult(np.nan, np.nan, "perfect_separation")
     except np.linalg.LinAlgError:
         return LogisticResult(np.nan, np.nan, "singular_matrix")
     except Exception as exc:
         return LogisticResult(np.nan, np.nan, f"fit_failed:{type(exc).__name__}")
+
+
+def bootstrap_effect_ci(
+    y: np.ndarray,
+    layer: np.ndarray,
+    n_iter: int = 1000,
+    seed: int = 12345,
+    ci: float = 0.95,
+):
+    """Bootstrap CI for the effect size = target-near freq - source-near freq."""
+    rng = np.random.default_rng(seed)
+    n = int(len(y))
+    deltas = []
+    for _ in range(n_iter):
+        idx = rng.integers(0, n, size=n)
+        tb = y[idx]
+        ly = layer[idx]
+        src = tb[ly == 0]
+        tgt = tb[ly == 2]
+        if len(src) == 0 or len(tgt) == 0:
+            continue
+        deltas.append(float(tgt.mean()) - float(src.mean()))
+    if len(deltas) < 200:
+        return np.nan, np.nan
+    alpha = (1.0 - ci) / 2.0
+    lo, hi = np.quantile(deltas, [alpha, 1.0 - alpha])
+    return float(lo), float(hi)
 
 
 def summarize_site(group: pd.DataFrame, min_total: int, min_per_layer: int) -> dict:
@@ -372,9 +422,18 @@ def summarize_site(group: pd.DataFrame, min_total: int, min_per_layer: int) -> d
         min_per_layer=min_per_layer,
     )
 
-    row["logistic_beta"] = fit.beta
+    row["logistic_beta_refit"] = fit.beta
+    row["logistic_beta_ci_low"] = fit.ci_low
+    row["logistic_beta_ci_high"] = fit.ci_high
+    row["odds_ratio"] = fit.or_value
+    row["odds_ratio_ci_low"] = fit.or_ci_low
+    row["odds_ratio_ci_high"] = fit.or_ci_high
+    row["logistic_refit_status"] = fit.status
     row["trend_p"] = fit.pvalue
-    row["logistic_status"] = fit.status
+    row["effect_size_ci_low"], row["effect_size_ci_high"] = bootstrap_effect_ci(
+        y=g["target_major_binary"].to_numpy(),
+        layer=g["layer_code"].to_numpy(),
+    )
     return row
 
 
@@ -465,12 +524,19 @@ def run_analysis(args: argparse.Namespace) -> None:
         "center_target_major_freq",
         "target_near_target_major_freq",
         "delta_target_near_minus_source_near",
+        "effect_size_ci_low",
+        "effect_size_ci_high",
         "monotonic_target_major_increase",
-        "logistic_beta",
+        "logistic_beta_refit",
+        "logistic_beta_ci_low",
+        "logistic_beta_ci_high",
+        "odds_ratio",
+        "odds_ratio_ci_low",
+        "odds_ratio_ci_high",
+        "logistic_refit_status",
         "trend_p",
         "trend_q_BH_within_analysis",
         "FDR_reject_alpha",
-        "logistic_status",
         "FDR_status",
     ]
     ordered = [c for c in preferred_order if c in result.columns]
@@ -480,7 +546,7 @@ def run_analysis(args: argparse.Namespace) -> None:
     write_csv(result, args.output)
 
     n_sites = len(result)
-    n_ok = int((result["logistic_status"] == "ok").sum())
+    n_ok = int((result["logistic_refit_status"] == "ok").sum())
     n_valid_q = int(result["trend_q_BH_within_analysis"].notna().sum())
     print(f"Saved: {args.output}")
     print(f"Sites analyzed: {n_sites}")
