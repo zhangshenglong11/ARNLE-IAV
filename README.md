@@ -47,7 +47,7 @@ The public workflow is organized in the following order:
 7. Define the middle/transition band and rank candidate-site trajectories.
 8. Map alignment columns to reference residue positions.
 9. Run ordered-layer logistic trend tests and within-analysis BH-FDR correction.
-10. Run permutation and threshold-sensitivity analyses supporting Figures 3 and 4 under the unified balanced-core transition-band rule.
+10. Run the historical geometric-rule permutation and threshold-sensitivity control (Supplementary Fig. S4); see Step 11 for the separate balanced-core Figure 3 resources.
 11. Reproduce and validate the candidate-site evidence levels used by candidate-site evidence summary/Figure 5.
 12. Perform HA-NA paired-isolate analysis.
 
@@ -68,6 +68,8 @@ https://github.com/berkay-onder/ELMoForManyLangs
 All commands below assume that the current directory is the root of the cloned `ARNLE-IAV` repository.
 
 For readability, the examples use placeholders such as `<ZENODO_ROOT>`, `<WORK_DIR>`, and `<MASTER_TABLE.csv>`. Replace every placeholder with a real local path before running a command.
+
+`<ZENODO_ROOT>` is the common directory into which the separate Zenodo ZIP files are extracted. Each ZIP contains its own top-level directory. Extract without adding an extra ZIP-name directory; the model downloads do not create a `pretrained_models/` wrapper. See "Data and model availability" below for the archive-to-directory mapping.
 
 ---
 
@@ -161,7 +163,7 @@ The embedding sequence length must be kept consistent with the generated embeddi
 ```bash
 python model/embedding/elmo_embedding_stream.py \
   --file <INPUT_PROTEIN_FASTA> \
-  --model_path <ZENODO_ROOT>/pretrained_models/ELMo/<ELMO_MODEL_DIR> \
+  --model_path <ZENODO_ROOT>/ELMo_model_token1 \
   --output <WORK_DIR>/embeddings/token1_embedding.npy \
   --batchsize 256 \
   --max_length <EMBEDDING_MAX_LENGTH> \
@@ -187,7 +189,7 @@ Before running the Bi-LSTM classifier, generate the required ELMo embedding arra
 Bi-LSTM FASTA roles in the Zenodo release:
 
 ```text
-training_validation_data/BiLSTM_train_validation/validation.fasta
+training_validation_data/BiLSTM_train_validation/train.fasta
     -> generate embeddings for --data_train
 
 training_validation_data/BiLSTM_train_validation/test.fasta
@@ -197,7 +199,7 @@ training_validation_data/BiLSTM_train_validation/test.fasta
 
 The classifier uses the three host classes `artiodactyla`, `primates`, and `aves`. The `--max_length` value must equal the second dimension of the ELMo embedding arrays supplied to this training run.
 
-**Bi-LSTM dataset-role mapping:** generate the embeddings used for `--data_train` from `training_validation_data/BiLSTM_train_validation/validation.fasta`, and generate the embeddings used for `--data_val` from `training_validation_data/BiLSTM_train_validation/test.fasta`. These FASTA roles reflect the finalized release workflow.
+**Bi-LSTM dataset-role mapping:** generate the embeddings used for `--data_train` from `training_validation_data/BiLSTM_train_validation/train.fasta`, and generate the embeddings used for `--data_val` from `training_validation_data/BiLSTM_train_validation/test.fasta`. The output prefix `validation_embedding` below refers to the classifier validation role of `test.fasta`, not to a distributed file named `validation.fasta`.
 
 ```bash
 python model/classifier/train_bilstm_host_classifier.py \
@@ -404,9 +406,11 @@ The sequence-level site-state input is an explicit input to this script; use the
 
 ---
 
-## Step 11. Build Figure 3 permutation and threshold-sensitivity support tables
+## Step 11. Build historical geometric-rule control tables
 
-Figures 3 and 4 use the unified **balanced-core** transition-band rule for defining the transition band (see Step 8). `transition_band_support.py` implements the geometric transition-band rule and is retained for the permutation and threshold-sensitivity control used in Supplementary Fig. S4. The balanced-core permutation and threshold-sensitivity results for Figure 3 are provided through the companion Zenodo release (`analysis_results/Figure3_balanced_core/`) and use a middle/bridge sample count ≥30 as the transition-band formation criterion.
+The commands in this step use the historical geometric-rule workflow corresponding to `analysis_results/Figure3/`, retained for the Supplementary Fig. S4 control. They are not reproduction commands for the balanced-core Figure 3 analysis.
+
+The main Figure 3 balanced-core results are distributed separately in `analysis_results/Figure3_balanced_core/`, with 28 combination directories containing `balanced_core_permutation_test.json` and `balanced_core_sensitivity.csv`. The commands below do not generate those balanced-core files. See the Zenodo README and manuscript Supplementary Methods S4.3 for their scope and interpretation.
 
 Script:
 
@@ -525,7 +529,7 @@ Repeat with the appropriate subtype and host direction for the other manuscript 
 | `transition_band_site_trajectory.py` | Define transition band and rank site trajectories |
 | `map_msa_to_reference.py` | Map alignment columns to reference residue numbering |
 | `site_logistic_trend_fdr.py` | Ordered logistic trend test and within-analysis BH-FDR |
-| `transition_band_support.py` | Balanced-core permutation negative controls and transition-band sensitivity (Figures 3–4) |
+| `transition_band_support.py` | Permutation negative controls and transition-band sensitivity |
 | `candidate_site_evidence.py` | Reproduce/validate the documented candidate-site evidence-level rule |
 | `ha_na_paired_analysis.py` | HA-NA same-isolate pairing and concordance analysis |
 
@@ -542,7 +546,22 @@ Repeat with the appropriate subtype and host direction for the other manuscript 
 
 This GitHub repository contains source code only. Training/validation sequence resources, pretrained ELMo models, Bi-LSTM checkpoints, and selected manuscript-supporting analysis result tables are distributed through the associated Zenodo archive.
 
-**Zenodo DOI:** `to be added`
+**Zenodo DOI (reserved for the release):** `10.5281/zenodo.22109110`
+
+The identifier was reserved during draft preparation; reservation alone does not indicate publication.
+
+The data release is distributed as 22 ZIP files:
+
+| Zenodo download | Directory after extraction under `<ZENODO_ROOT>` |
+|---|---|
+| `analysis_results.zip` | `analysis_results/` |
+| `training_validation_data.zip` | `training_validation_data/` |
+| `ELMo_model_tokenN.zip`, N = 1–10 | `ELMo_model_tokenN/` |
+| `Bi-LSTM_model_tokenN.zip`, N = 1–10 | `tokenN_model/` |
+
+ELMo training inputs are in `training_validation_data/ELMo_train/`: `train.fasta`, `token1.raw`, and `influenza_proteins_train_all_quchong.fasta.kN.raw` for N = 2–10. Bi-LSTM sequence resources are `training_validation_data/BiLSTM_train_validation/train.fasta` and `test.fasta`. Match the ELMo token setting to the intended classifier; the Step 3 example uses token 1. The Step 4 `--model_path` is an output path for a new training run, not the path of an archived checkpoint.
+
+`analysis_results.zip` also contains `Figure4/`, `Figure5/`, `SupplementaryTableS6_positive_control/`, `SupplementaryTableS7_era_stratified/`, and `HA_NA_sensitivity/` under `analysis_results/`. The Zenodo README describes these resources; their inclusion does not imply that every supporting analysis has a reproduction command in this README.
 
 After downloading the Zenodo archive, keep the data and model files outside the Git repository and replace the path placeholders used in the commands above (for example, `<ZENODO_ROOT>` and `<WORK_DIR>`) with the corresponding local paths. No fixed `data/` directory is required inside this repository.
 
