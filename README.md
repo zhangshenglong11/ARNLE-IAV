@@ -546,7 +546,7 @@ Repeat with the appropriate subtype and host direction for the other manuscript 
 
 This GitHub repository contains source code only. Training/validation sequence resources, pretrained ELMo models, Bi-LSTM checkpoints, and selected manuscript-supporting analysis result tables are distributed through the associated Zenodo archive.
 
-**Zenodo DOI (reserved for the release):** `10.5281/zenodo.22109110`
+**Zenodo DOI (reserved for the release):** ``
 
 The identifier was reserved during draft preparation; reservation alone does not indicate publication.
 
