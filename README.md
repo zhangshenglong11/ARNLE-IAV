@@ -47,7 +47,7 @@ The public workflow is organized in the following order:
 7. Define the middle/transition band and rank candidate-site trajectories.
 8. Map alignment columns to reference residue positions.
 9. Run ordered-layer logistic trend tests and within-analysis BH-FDR correction.
-10. Run the historical geometric-rule permutation and threshold-sensitivity control (Supplementary Fig. S4); see Step 11 for the separate balanced-core Figure 3 resources.
+10. Run the historical geometric-rule permutation and threshold-sensitivity control (Supplementary Fig. S4) and the balanced-core permutation, era-stratified robustness, and positive-control analyses; see Step 11.
 11. Reproduce and validate the candidate-site evidence levels used by candidate-site evidence summary/Figure 5.
 12. Perform HA-NA paired-isolate analysis.
 
@@ -404,18 +404,33 @@ python downstream_analysis/site_trajectory/site_logistic_trend_fdr.py validate-f
 
 The sequence-level site-state input is an explicit input to this script; use the staged site-state table associated with the corresponding analysis rather than inferring unavailable per-sequence states from a summary table.
 
+Site-effect confidence intervals and logistic odds ratios (same input):
+
+```text
+downstream_analysis/site_trajectory/site_effect_ci_or.py
+```
+
+```bash
+python downstream_analysis/site_trajectory/site_effect_ci_or.py \
+  --site-state <TRANSITION_BAND_SITE_STATES_LONG.csv> \
+  --output <WORK_DIR>/statistics/site_effect_ci_and_or.csv --n-boot 2000
+```
+
+This script consumes the same `--site-state` table and reports bootstrap confidence intervals for the effect size together with refitted logistic coefficients and odds ratios. Merge its output with the trend/FDR table on `analysis_label` + `position`.
+
 ---
 
 ## Step 11. Build historical geometric-rule control tables
 
 The commands in this step use the historical geometric-rule workflow corresponding to `analysis_results/Figure3/`, retained for the Supplementary Fig. S4 control. They are not reproduction commands for the balanced-core Figure 3 analysis.
 
-The main Figure 3 balanced-core results are distributed separately in `analysis_results/Figure3_balanced_core/`, with 28 combination directories containing `balanced_core_permutation_test.json` and `balanced_core_sensitivity.csv`. The commands below do not generate those balanced-core files. See the Zenodo README and manuscript Supplementary Methods S4.3 for their scope and interpretation.
+The main Figure 3 balanced-core results are distributed separately in `analysis_results/Figure3_balanced_core/`, with 28 combination directories containing `balanced_core_permutation_test.json` and `balanced_core_sensitivity.csv`, plus a `TableS5_balanced_core_summary_28combos.csv` summary. These files can be reproduced with `balanced_core_permutation.py` below; see the Zenodo README and manuscript Supplementary Methods S4.3 for their scope and interpretation.
 
 Script:
 
 ```text
 downstream_analysis/evidence/transition_band_support.py
+downstream_analysis/evidence/balanced_core_permutation.py
 ```
 
 ### Recommended batch mode
@@ -454,6 +469,47 @@ python downstream_analysis/evidence/transition_band_support.py \
   --default-trim 0.10 \
   --default-min-group-size 30
 ```
+
+### Balanced-core permutation and sensitivity
+
+```bash
+python downstream_analysis/evidence/balanced_core_permutation.py \
+  --pca-csv <WORK_DIR>/Figure3_support/<COMBINATION>/merged_pairwise_master_inner_with_projection.csv \
+  --source-host artiodactyla --target-host primates \
+  --outdir <WORK_DIR>/Figure3_balanced_core/<COMBINATION> \
+  --n-permutation 1000 --seed 2026 --do-sensitivity
+```
+
+The permutation statistic is a signal-to-noise style axis-separation score (source/target centroid distance divided by pooled within-group SD). Outputs are `balanced_core_permutation_test.json` and `balanced_core_sensitivity.csv` per combination.
+
+### Era-stratified robustness
+
+```text
+downstream_analysis/evidence/era_stratified_robustness.py
+```
+
+```bash
+python downstream_analysis/evidence/era_stratified_robustness.py \
+  --pca-csv <WORK_DIR>/Figure3_support/<COMBINATION>/merged_pairwise_master_inner_with_projection.csv \
+  --source-host artiodactyla --target-host primates \
+  --year-col year --label "<COMBINATION>" \
+  --outdir <WORK_DIR>/era_stratified/<COMBINATION> \
+  --window-size 5 --step 2 --n-boot 1000
+```
+
+### Classic-marker positive control
+
+```text
+downstream_analysis/evidence/classic_marker_recall.py
+```
+
+```bash
+python downstream_analysis/evidence/classic_marker_recall.py \
+  --candidate-pool-csv <CANDIDATE_SITE_SUMMARY_WITH_TREND_RESULTS.csv> \
+  --outdir <WORK_DIR>/positive_control
+```
+
+Checks whether textbook host-adaptation markers (PB2-627/701, HA receptor-binding sites, NP MxA-escape cluster) are recalled among the candidate sites. If the local residue numbering differs from the built-in literature numbering, supply a custom table with `--marker-table`.
 
 ---
 
@@ -512,6 +568,27 @@ python downstream_analysis/HA_NA_pairing/ha_na_paired_analysis.py \
 
 Repeat with the appropriate subtype and host direction for the other manuscript combinations. The pairing code evaluates candidate isolate keys, requires unique one-to-one HA/NA keys for paired analysis, and writes pairing diagnostics together with the final paired tables.
 
+Robustness follow-ups on the paired tables (same `paired_table.csv` input):
+
+```text
+downstream_analysis/HA_NA_pairing/ha_na_correlation_robustness.py
+downstream_analysis/HA_NA_pairing/ha_na_threshold_sensitivity.py
+```
+
+```bash
+python downstream_analysis/HA_NA_pairing/ha_na_correlation_robustness.py \
+  --paired-csv <WORK_DIR>/HA_NA_pairing/H1N1_artiodactyla_to_primates/paired_table.csv \
+  --label "H1N1 artiodactyla_to_primates" \
+  --outdir <WORK_DIR>/HA_NA_pairing/H1N1_artiodactyla_to_primates/correlation
+
+python downstream_analysis/HA_NA_pairing/ha_na_threshold_sensitivity.py \
+  --paired-csv <WORK_DIR>/HA_NA_pairing/H1N1_artiodactyla_to_primates/paired_table.csv \
+  --label "H1N1 artiodactyla_to_primates" \
+  --outdir <WORK_DIR>/HA_NA_pairing/H1N1_artiodactyla_to_primates/threshold_sensitivity
+```
+
+The correlation script adds permutation P values and bootstrap confidence intervals for the HA–NA target-major-fraction correlation; the threshold script repeats the joint-state classification at 0.5/0.6/0.7/0.8 to test sensitivity to the 0.60 decision threshold.
+
 ---
 
 ## Script-to-analysis reference
@@ -529,9 +606,15 @@ Repeat with the appropriate subtype and host direction for the other manuscript 
 | `transition_band_site_trajectory.py` | Define transition band and rank site trajectories |
 | `map_msa_to_reference.py` | Map alignment columns to reference residue numbering |
 | `site_logistic_trend_fdr.py` | Ordered logistic trend test and within-analysis BH-FDR |
+| `site_effect_ci_or.py` | Effect-size bootstrap CI plus logistic coefficient CI and odds ratios |
 | `transition_band_support.py` | Permutation negative controls and transition-band sensitivity |
+| `balanced_core_permutation.py` | Balanced-core permutation test and threshold sensitivity per combination |
+| `era_stratified_robustness.py` | Sliding-year-window era-stratified robustness of transition separation |
+| `classic_marker_recall.py` | Classic host-adaptation marker positive-control recall |
 | `candidate_site_evidence.py` | Reproduce/validate the documented candidate-site evidence-level rule |
 | `ha_na_paired_analysis.py` | HA-NA same-isolate pairing and concordance analysis |
+| `ha_na_correlation_robustness.py` | HA-NA correlation permutation P values and bootstrap CIs |
+| `ha_na_threshold_sensitivity.py` | HA-NA joint-state threshold (0.5/0.6/0.7/0.8) sensitivity |
 
 ## Reproducibility notes
 
@@ -561,7 +644,7 @@ The data release is distributed as 22 ZIP files:
 
 ELMo training inputs are in `training_validation_data/ELMo_train/`: `train.fasta`, `token1.raw`, and `influenza_proteins_train_all_quchong.fasta.kN.raw` for N = 2–10. Bi-LSTM sequence resources are `training_validation_data/BiLSTM_train_validation/train.fasta` and `test.fasta`. Match the ELMo token setting to the intended classifier; the Step 3 example uses token 1. The Step 4 `--model_path` is an output path for a new training run, not the path of an archived checkpoint.
 
-`analysis_results.zip` also contains `Figure4/`, `Figure5/`, `SupplementaryTableS6_positive_control/`, `SupplementaryTableS7_era_stratified/`, and `HA_NA_sensitivity/` under `analysis_results/`. The Zenodo README describes these resources; their inclusion does not imply that every supporting analysis has a reproduction command in this README.
+`analysis_results.zip` also contains `Figure4/`, `Figure5/`, `SupplementaryTableS6_positive_control/`, `SupplementaryTableS7_era_stratified/`, and `HA_NA_sensitivity/` under `analysis_results/`. The Zenodo README describes these resources; reproduction commands for the balanced-core permutation, site-effect CI/odds-ratio, positive-control, era-stratified, and HA-NA robustness analyses are documented in Steps 10, 11, and 13.
 
 After downloading the Zenodo archive, keep the data and model files outside the Git repository and replace the path placeholders used in the commands above (for example, `<ZENODO_ROOT>` and `<WORK_DIR>`) with the corresponding local paths. No fixed `data/` directory is required inside this repository.
 

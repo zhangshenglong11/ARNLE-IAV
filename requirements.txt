@@ -12,5 +12,6 @@ logomaker==0.8
 # Additional dependencies used by ARNLE-IAV-specific scripts
 torch
 statsmodels
+scipy  # used by balanced_core_permutation.py, era_stratified_robustness.py, ha_na_correlation_robustness.py
 biopython
 plotly
