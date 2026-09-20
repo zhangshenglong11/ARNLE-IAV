@@ -629,7 +629,7 @@ The correlation script adds permutation P values and bootstrap confidence interv
 
 This GitHub repository contains source code only. Training/validation sequence resources, pretrained ELMo models, Bi-LSTM checkpoints, and selected manuscript-supporting analysis result tables are distributed through the associated Zenodo archive.
 
-**Zenodo DOI (reserved for the release):** [10.5281/zenodo.22109110](https://doi.org/10.5281/zenodo.22109110)
+**Zenodo DOI:** [10.5281/zenodo.22109110](https://doi.org/10.5281/zenodo.22109110)
 
 The identifier was reserved during draft preparation; reservation alone does not indicate publication.
 
