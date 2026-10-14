@@ -41,15 +41,16 @@ The public workflow is organized in the following order:
 1. Extract IAV proteins and prepare ARNLE-compatible sequence input.
 2. Generate ELMo sequence representations.
 3. Train/evaluate the three-class Bi-LSTM host classifier.
-4. Generate unified sequence-level PCA coordinates.
-5. Perform pairwise source-to-target PCA transition analysis.
-6. Generate protein/subtype/host-direction residue-frequency inputs.
-7. Define the middle/transition band and rank candidate-site trajectories.
-8. Map alignment columns to reference residue positions.
-9. Run ordered-layer logistic trend tests and within-analysis BH-FDR correction.
-10. Run the historical geometric-rule permutation and threshold-sensitivity control (Supplementary Fig. S4) and the balanced-core permutation, era-stratified robustness, and positive-control analyses; see Step 11.
-11. Reproduce and validate the candidate-site evidence levels used by candidate-site evidence summary/Figure 5.
-12. Perform HA-NA paired-isolate analysis.
+4. Run the trained classifier in prediction mode to export host-class probabilities and per-sequence attention matrices.
+5. Generate unified sequence-level PCA coordinates.
+6. Perform pairwise source-to-target PCA transition analysis.
+7. Generate protein/subtype/host-direction residue-frequency inputs.
+8. Define the middle/transition band and rank candidate-site trajectories.
+9. Map alignment columns to reference residue positions.
+10. Run ordered-layer logistic trend tests and within-analysis BH-FDR correction.
+11. Run the historical geometric-rule permutation and threshold-sensitivity control (Supplementary Fig. S4) and the balanced-core permutation, era-stratified robustness, and positive-control analyses; see Step 11.
+12. Reproduce and validate the candidate-site evidence levels used by candidate-site evidence summary/Figure 5.
+13. Perform HA-NA paired-isolate analysis.
 
 ## Installation
 
@@ -227,6 +228,41 @@ python model/classifier/train_bilstm_host_classifier.py \
 The script automatically discovers all matching `*_part*.npy` blocks when a base or `*_part000.npy` path is supplied. Validation outputs include global/host/protein/subtype metrics and confusion matrices.
 
 **Downstream feature input:** the PCA scripts below use sequence-level master tables and attention-derived feature arrays. Large sequence datasets, pretrained models, checkpoints, and selected manuscript-supporting result tables are distributed through Zenodo. Intermediate embedding arrays and some analysis-stage inputs are regenerated locally from the provided resources using the public scripts. This repository does not fabricate or reconstruct missing inference outputs.
+
+---
+
+## Step 4B. Run the Bi-LSTM classifier in prediction mode
+
+Script:
+
+```text
+model/classifier/predict_attn.py
+```
+
+This script restores a trained Bi-LSTM checkpoint, feeds an ELMo embedding array, and exports the host-class softmax probabilities together with the per-sequence attention matrix used by the downstream PCA and transition analyses.
+
+`--model_path` is a checkpoint directory (the script locates the `checkpoint` state file inside it). `--data` must point to a single embedding `.npy` array whose second dimension matches the checkpoint `--max_length`, and `--file` must be the FASTA file used to generate that embedding array so that per-sequence token lengths stay aligned. The ARNLE-IAV classifier has three host classes, so pass `--num_class 3` explicitly (the default is 6). `--out_path` may be a directory (default filename `prediction_probability.npy`) or a `*.npy` file path; in both cases the attention matrix is written next to it, with the filename set by `--attn_name`.
+
+```bash
+python model/classifier/predict_attn.py \
+  --model_path <ZENODO_ROOT>/token1_model \
+  --data <WORK_DIR>/embeddings/token1_embedding_part000.npy \
+  --file <INPUT_PROTEIN_FASTA> \
+  --num_class 3 \
+  --n_split 1 \
+  --batchsize 256 \
+  --out_path <WORK_DIR>/predictions/token1 \
+  --attn_name token1_attn.npy
+```
+
+Outputs include:
+
+```text
+prediction_probability.npy
+token1_attn.npy
+```
+
+The exported attention matrix is the `--attn_npys` input expected by `sequence_feature_3d_pca.py` in Step 5.
 
 ---
 
@@ -600,6 +636,7 @@ The correlation script adds permutation P values and bootstrap confidence interv
 | `fasta_to_kmer_raw.py` | Prepare multi-token RAW inputs |
 | `elmo_embedding_stream.py` | Export ELMo protein representations |
 | `train_bilstm_host_classifier.py` | Train/evaluate three-host Bi-LSTM classifier |
+| `predict_attn.py` | Predict host-class probabilities and export per-sequence attention matrices |
 | `sequence_feature_3d_pca.py` | Generate unified sequence-level PCA coordinates |
 | `pairwise_pca_transition.py` | Project source/target host pairs in PCA space |
 | `pairwise_residue_frequency.py` | Generate pairwise residue-frequency and sorted-difference inputs |
