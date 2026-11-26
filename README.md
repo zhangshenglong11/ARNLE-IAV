@@ -2,11 +2,11 @@
 
 ARNLE-IAV is an influenza A virus (IAV) host-adaptation analysis framework adapted from the ARNLE model. This repository contains the influenza-specific sequence-processing code, ELMo representation export, the three-class Bi-LSTM host classifier, and the downstream PCA, transition-band, candidate-site, statistical-evidence, and HA-NA paired-isolate analyses used in the study.
 
-Large-scale training/validation datasets, pretrained model weights, and the analysis-result tables associated with the manuscript are distributed through the companion Zenodo release.
+Large-scale training/validation datasets, pretrained model weights, and selected manuscript-supporting analysis-result tables are distributed through the companion Zenodo release.
 
 ## Relationship to ARNLE
 
-ARNLE-IAV follows the original ARNLE framework for protein sequence representation learning and supervised host classification. The ELMo and Bi-LSTM framework is adapted to IAV by changing the sequence resources, tokenization/data preparation, host classification scheme, and downstream analyses. ELMo pretraining itself follows the original ARNLE implementation and is therefore not duplicated in this repository.
+ARNLE-IAV follows the original [ARNLE framework](https://github.com/SN-1604/ARNLE) for protein sequence representation learning and supervised host classification. The ELMo and Bi-LSTM framework is adapted to IAV by changing the sequence resources, tokenization/data preparation, host classification scheme, and downstream analyses. ELMo pretraining itself follows the original ARNLE implementation and is therefore not duplicated in this repository.
 
 
 ## Repository structure
@@ -32,7 +32,7 @@ ARNLE-IAV/
 
 ## Script naming
 
-Public script names are intentionally concise and function-oriented. Development labels, version suffixes, and environment-specific terms are omitted from filenames; the underlying analysis logic is unchanged.
+Public script names are intentionally concise and function-oriented. Development labels, version suffixes, and environment-specific terms are omitted from filenames; filename simplification does not change the underlying analysis logic. Any implementation reconstructed after the original analysis is identified explicitly in its script documentation and in the relevant workflow step below.
 
 ## Analysis workflow
 
@@ -41,7 +41,7 @@ The public workflow is organized in the following order:
 1. Extract IAV proteins and prepare ARNLE-compatible sequence input.
 2. Generate ELMo sequence representations.
 3. Train/evaluate the three-class Bi-LSTM host classifier.
-4. Run the trained classifier in prediction mode to export host-class probabilities and per-sequence attention matrices.
+4. Run the trained classifier in prediction mode to export host-class probabilities and attention-pooled sequence feature vectors.
 5. Generate unified sequence-level PCA coordinates.
 6. Perform pairwise source-to-target PCA transition analysis.
 7. Generate protein/subtype/host-direction residue-frequency inputs.
@@ -49,7 +49,7 @@ The public workflow is organized in the following order:
 9. Map alignment columns to reference residue positions.
 10. Run ordered-layer logistic trend tests and within-analysis BH-FDR correction.
 11. Run the historical geometric-rule permutation and threshold-sensitivity control (Supplementary Fig. S4) and the balanced-core permutation, era-stratified robustness, and positive-control analyses; see Step 11.
-12. Reproduce and validate the candidate-site evidence levels used by candidate-site evidence summary/Figure 5.
+12. Reproduce and validate the documented reconstruction of the candidate-site evidence levels used by the candidate-site evidence summary/Figure 5.
 13. Perform HA-NA paired-isolate analysis.
 
 ## Installation
@@ -60,11 +60,7 @@ The base package versions in `requirements.txt` follow the public ARNLE reposito
 pip install -r requirements.txt
 ```
 
-ELMo representation export also requires **ELMoForManyLangs**, as in the original ARNLE workflow. Install ELMoForManyLangs separately before running `model/embedding/elmo_embedding_stream.py`. The original ARNLE repository uses the ELMoForManyLangs implementation available from:
-
-```text
-https://github.com/berkay-onder/ELMoForManyLangs
-```
+ELMo representation export also requires [ELMoForManyLangs](https://github.com/berkay-onder/ELMoForManyLangs), as in the original ARNLE workflow. Install it separately before running `model/embedding/elmo_embedding_stream.py`.
 
 All commands below assume that the current directory is the root of the cloned `ARNLE-IAV` repository.
 
@@ -74,7 +70,7 @@ For readability, the examples use placeholders such as `<ZENODO_ROOT>`, `<WORK_D
 
 ---
 
-# Running ARNLE-IAV in analysis order
+## Running ARNLE-IAV in analysis order
 
 ## Step 1. Extract IAV protein FASTA files
 
@@ -239,9 +235,9 @@ Script:
 model/classifier/predict_attn.py
 ```
 
-This script restores a trained Bi-LSTM checkpoint, feeds an ELMo embedding array, and exports the host-class softmax probabilities together with the per-sequence attention matrix used by the downstream PCA and transition analyses.
+This script restores a trained Bi-LSTM checkpoint, feeds one or more ELMo embedding arrays, and exports the host-class softmax probabilities together with the attention-pooled sequence feature vectors used by the downstream PCA and transition analyses. These vectors are the sequence representations after attention pooling; they are not per-residue attention-weight matrices.
 
-`--model_path` is a checkpoint directory (the script locates the `checkpoint` state file inside it). `--data` must point to a single embedding `.npy` array whose second dimension matches the checkpoint `--max_length`, and `--file` must be the FASTA file used to generate that embedding array so that per-sequence token lengths stay aligned. The ARNLE-IAV classifier has three host classes, so pass `--num_class 3` explicitly (the default is 6). `--out_path` may be a directory (default filename `prediction_probability.npy`) or a `*.npy` file path; in both cases the attention matrix is written next to it, with the filename set by `--attn_name`.
+`--model_path` is a checkpoint directory (the script locates the `checkpoint` state file inside it). `--data` may point to a single embedding `.npy` array, an embedding base path, or a `*_part000.npy` path; matching `*_part*.npy` chunks are discovered and processed in filename order. Every chunk must have the same time and feature dimensions, and `--file` must be the FASTA file used to generate the complete ordered embedding set. The ARNLE-IAV classifier has three host classes, so pass `--num_class 3` explicitly (the default is 6). The probability columns follow the training class order: `artiodactyla`, `primates`, and `aves`. `--out_path` may be a directory (default filename `prediction_probability.npy`) or a `*.npy` file path; in both cases the attention-pooled feature array is written next to it, with the backward-compatible filename set by `--attn_name`.
 
 ```bash
 python model/classifier/predict_attn.py \
@@ -262,7 +258,7 @@ prediction_probability.npy
 token1_attn.npy
 ```
 
-The exported attention matrix is the `--attn_npys` input expected by `sequence_feature_3d_pca.py` in Step 5.
+The exported attention-pooled sequence feature array is the `--attn_npys` input expected by `sequence_feature_3d_pca.py` in Step 5. The `attn` filename is retained for compatibility with existing analysis paths.
 
 ---
 
@@ -549,7 +545,7 @@ Checks whether textbook host-adaptation markers (PB2-627/701, HA receptor-bindin
 
 ---
 
-## Step 12. Reproduce and validate candidate-site evidence summary candidate-site evidence levels
+## Step 12. Reproduce and validate the candidate-site evidence levels
 
 Script:
 
@@ -557,7 +553,7 @@ Script:
 downstream_analysis/evidence/candidate_site_evidence.py
 ```
 
-The original candidate-site evidence summary evidence-level generator was not preserved. The public script is therefore a documented reconstruction of the evidence rule that was validated against all 543 exported candidate-site evidence summary records. The input table must already contain the columns required by that rule, including `delta_target_near_minus_source_near`, `trend_q_BH_within_analysis`, and `trajectory_score`.
+The original candidate-site evidence-level generator was not preserved. The public script is therefore a documented post hoc reconstruction of the evidence rule, not the original generator used during the analysis. The reconstructed rule was validated against all 543 exported candidate-site evidence summary records. The input table must already contain the columns required by that rule, including `delta_target_near_minus_source_near`, `trend_q_BH_within_analysis`, and `trajectory_score`.
 
 ```bash
 python downstream_analysis/evidence/candidate_site_evidence.py \
@@ -636,7 +632,7 @@ The correlation script adds permutation P values and bootstrap confidence interv
 | `fasta_to_kmer_raw.py` | Prepare multi-token RAW inputs |
 | `elmo_embedding_stream.py` | Export ELMo protein representations |
 | `train_bilstm_host_classifier.py` | Train/evaluate three-host Bi-LSTM classifier |
-| `predict_attn.py` | Predict host-class probabilities and export per-sequence attention matrices |
+| `predict_attn.py` | Predict host-class probabilities and export attention-pooled sequence feature vectors |
 | `sequence_feature_3d_pca.py` | Generate unified sequence-level PCA coordinates |
 | `pairwise_pca_transition.py` | Project source/target host pairs in PCA space |
 | `pairwise_residue_frequency.py` | Generate pairwise residue-frequency and sorted-difference inputs |
@@ -660,15 +656,21 @@ The correlation script adds permutation P values and bootstrap confidence interv
 - The ELMo embedding length and Bi-LSTM `--max_length` must be consistent for a given classifier input dataset.
 - Host directions are explicit (`source:target`) and should be kept consistent across pairwise PCA, trajectory, Figure 3 support, and HA-NA analyses.
 - Large inputs, checkpoints, and manuscript result tables belong to the Zenodo release rather than the Git repository.
-- Plotting scripts are intentionally not included in this public code release; the repository focuses on model adaptation and core analytical computations.
+- Several analysis scripts generate diagnostic PNG, PDF, or HTML outputs. Scripts used only for final manuscript-panel assembly and exact publication-layout reproduction are not included in this public code release.
+
+## Code availability
+
+The ARNLE-IAV source code is available in this GitHub repository under the MIT License. Until a tagged software release is created, cite the repository URL together with the specific commit used. The MIT License applies to this repository's source code; the associated Zenodo data and model record has its own licence.
 
 ## Data and model availability
 
 This GitHub repository contains source code only. Training/validation sequence resources, pretrained ELMo models, Bi-LSTM checkpoints, and selected manuscript-supporting analysis result tables are distributed through the associated Zenodo archive.
 
-**Zenodo DOI:** [10.5281/zenodo.22109110](https://doi.org/10.5281/zenodo.22109110)
+**Version-specific DOI:** [10.5281/zenodo.22109110](https://doi.org/10.5281/zenodo.22109110)
 
-The identifier was reserved during draft preparation; reservation alone does not indicate publication.
+**Concept DOI for all versions:** [10.5281/zenodo.22109109](https://doi.org/10.5281/zenodo.22109109)
+
+The published record is titled *ARNLE-IAV: data, pretrained models, and analysis resources*. Zenodo metadata assigns the deposited record the Creative Commons Attribution 4.0 International (CC BY 4.0) licence. Use the version-specific DOI when referring to the exact archived files used here; use the concept DOI when referring to the evolving record across versions.
 
 The data release is distributed as 22 ZIP files:
 
@@ -686,6 +688,11 @@ ELMo training inputs are in `training_validation_data/ELMo_train/`: `train.fasta
 After downloading the Zenodo archive, keep the data and model files outside the Git repository and replace the path placeholders used in the commands above (for example, `<ZENODO_ROOT>` and `<WORK_DIR>`) with the corresponding local paths. No fixed `data/` directory is required inside this repository.
 
 Precomputed ELMo embedding arrays and dedicated Figure 2 source-data tables are not distributed separately. ELMo embeddings can be regenerated from the provided FASTA sequence resources using the pretrained ELMo models and `model/embedding/elmo_embedding_stream.py`; token-specific pretrained models and Bi-LSTM checkpoints are distributed through Zenodo.
+
+Preferred citation for the archived data and model record:
+
+> Zhang, Shenglong (2026). *ARNLE-IAV: data, pretrained models, and analysis resources*. Zenodo. https://doi.org/10.5281/zenodo.22109110
+
 ## Citation
 
-The ARNLE-IAV manuscript has not yet been published. Until a formal article citation is available, cite the archived software/data release identifiers provided with the public repositories and cite the original ARNLE framework where applicable. Software author: **Zhang Shenglong**. This section will be updated after publication.
+The ARNLE-IAV manuscript has not yet been published. Until a formal article citation is available, cite this GitHub repository using the specific commit or a future tagged release, cite the Zenodo data/model record above, and cite the original [ARNLE framework](https://github.com/SN-1604/ARNLE) where applicable. Software author: **Zhang Shenglong**. This section will be updated after publication.

@@ -1,9 +1,30 @@
 cff-version: 1.2.0
+message: >-
+  Please cite this software repository and the associated Zenodo data and
+  model record. Cite the ARNLE-IAV article after a formal publication
+  citation becomes available.
 title: ARNLE-IAV
+type: software
 authors:
   - family-names: Zhang
     given-names: Shenglong
-
-message: Please cite the ARNLE-IAV publication when using this repository.
-type: software
-version: 1.0
+abstract: >-
+  Source code for influenza A virus sequence processing, ELMo representation
+  export, three-class Bi-LSTM host classification, and downstream analyses.
+repository-code: https://github.com/zhangshenglong11/ARNLE-IAV
+url: https://github.com/zhangshenglong11/ARNLE-IAV
+license: MIT
+keywords:
+  - influenza A virus
+  - host adaptation
+  - protein sequence
+  - ELMo
+  - Bi-LSTM
+references:
+  - type: dataset
+    title: "ARNLE-IAV: data, pretrained models, and analysis resources"
+    authors:
+      - family-names: Zhang
+        given-names: Shenglong
+    year: 2026
+    doi: 10.5281/zenodo.22109110
