@@ -1,10 +1,13 @@
-# Base environment from the original ARNLE repository
+# Dependency reference only; this is not a one-environment lock file.
+# See ENVIRONMENTS.md for the three verified execution environments.
+# Core model versions are based on the public ARNLE dependency declaration,
+# except where an ARNLE-IAV script requires a newer package.
 tensorflow-gpu==2.6.0
 numpy==1.19.3
 matplotlib==2.2.2
 seaborn==0.11.2
 scikit-learn==0.23.2
-pandas==1.3.5  # >=1.0 required for Series.str.replace(regex=...) in map_msa_to_reference.py
+pandas==1.3.5  # differs from upstream ARNLE 0.23.0; required by map_msa_to_reference.py
 Gensim==4.1.2
 tqdm==4.62.3
 logomaker==0.8
