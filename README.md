@@ -55,8 +55,6 @@ The public workflow is organized in the following order:
 
 ## Installation
 
-The workflow was run in three stage-specific environments rather than one combined environment. Use `elmo2` for ELMo representation export, `arnle` for TensorFlow Bi-LSTM training/prediction and the original ARNLE utilities (including `logomaker`), and `base` for preprocessing and downstream statistical/plotting analyses. The versions observed on the author server, their intended scope, and differences from the public ARNLE environment declaration are recorded in [ENVIRONMENTS.md](ENVIRONMENTS.md).
-
 `requirements.txt` is a dependency reference for the repository, not a complete lock file for a single Python environment. In particular, the model stages use Python 3.6, whereas several ARNLE-IAV downstream scripts use Python features introduced after Python 3.6 and were run in the newer `base` environment.
 
 ELMo representation export also requires [ELMoForManyLangs](https://github.com/berkay-onder/ELMoForManyLangs), as in the original ARNLE workflow. Install it separately before running `model/embedding/elmo_embedding_stream.py`.
